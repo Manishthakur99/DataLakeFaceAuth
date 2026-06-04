@@ -1,24 +1,42 @@
 {
   "expo": {
     "name": "DataLakeFaceAuth",
-    "slug": "DataLakeFaceAuth",
+    "slug": "datalakefaceauth",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
+    "assetBundlePatterns": [
+      "assets/**/*",
+      "assets/models/**/*",
+      "assets/mediapipe/**/*"
+    ],
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.anonymous.datalakefaceauth"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "ios": {
+      "bundleIdentifier": "com.anonymous.datalakefaceauth",
+      "supportsTablet": true
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Face authentication ke liye camera chahiye"
+        }
+      ],
+      "expo-sqlite",
+      "expo-status-bar",
+      "expo-asset"
+    ]
   }
 }

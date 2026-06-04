@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; }
+    #canvas { width: 100vw; height: 100vh; }
+    #status {
+      position: fixed; top: 10px; left: 0; right: 0;
+      text-align: center; color: #fff;
+      font-family: Arial; font-size: 14px;
+      background: rgba(0,0,0,0.5);
+      padding: 8px; z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Loading MediaPipe...</div>
+  <canvas id="canvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
+
+  <script>
+    const status = document.getElementById('status');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // React Native ko message bhejo
+    function sendToRN(data) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(data));
+      }
+    }
+
+    // Eye Aspect Ratio — blink detect karne ke liye
+    function getEAR(landmarks, eyeIndices) {
+      const p = (i) => landmarks[i];
+      const dist = (a, b) => Math.sqrt(
+        (a.x - b.x) ** 2 + (a.y - b.y) ** 2
+      );
+      const vertical1 = dist(p(eyeIndices[1]), p(eyeIndices[5]));
+      const vertical2 = dist(p(eyeIndices[2]), p(eyeIndices[4]));
+      const horizontal = dist(p(eyeIndices[0]), p(eyeIndices[3]));
+      return (vertical1 + vertical2) / (2.0 * horizontal);
+    }
+
+    // Mouth Aspect Ratio — smile detect karne ke liye
+    function getMAR(landmarks) {
+      const p = (i) => landmarks[i];
+      const dist = (a, b) => Math.sqrt(
+        (a.x - b.x) ** 2 + (a.y - b.y) ** 2
+      );
+      const vertical = dist(p(13), p(14));
+      const horizontal = dist(p(61), p(291));
+      return vertical / horizontal;
+    }
+
+    // Face embedding — 128 key landmarks se
+    function getFaceEmbedding(landmarks) {
+      const keyPoints = [
+        1, 4, 5, 6, 8, 10, 13, 14, 17, 21,
+        33, 37, 40, 46, 52, 53, 54, 55, 58, 61,
+        63, 65, 66, 67, 70, 78, 80, 81, 82, 84,
+        87, 88, 91, 93, 95, 103, 105, 107, 109, 127,
+        132, 133, 136, 144, 145, 146, 148, 149, 150, 152,
+        153, 154, 155, 157, 158, 159, 160, 161, 162, 163,
+        172, 173, 176, 178, 181, 185, 191, 195, 197, 199,
+        200, 202, 205, 206, 207, 208, 209, 210, 211, 212,
+        213, 214, 215, 217, 219, 220, 221, 222, 223, 224,
+        225, 226, 227, 228, 229, 230, 231, 232, 233, 234,
+        246, 249, 251, 253, 254, 255, 256, 257, 258, 259,
+        260, 261, 263, 267, 269, 270, 271, 272, 276, 277,
+        282, 283, 284, 285, 286, 288, 293, 295
+      ];
+
+      const embedding = [];
+      const nose = landmarks[1]; // nose tip as reference
+
+      for (const idx of keyPoints) {
+        const lm = landmarks[idx];
+        // Nose-relative coordinates — pose invariant
+        embedding.push(lm.x - nose.x);
+        embedding.push(lm.y - nose.y);
+        if (embedding.length >= 128) break;
+      }
+
+      // L2 normalize
+      const norm = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+      return embedding.map(v => norm === 0 ? 0 : v / norm);
+    }
+
+    // MediaPipe FaceMesh setup
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => 
+        `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7,
+    });
+
+    let frameCount = 0;
+    let blinkCount = 0;
+    let lastEAR = 0.3;
+    let blinkDetected = false;
+
+    // LEFT eye indices (MediaPipe)
+    const LEFT_EYE  = [362, 385, 387, 263, 373, 380];
+    const RIGHT_EYE = [33,  160, 158, 133, 153, 144];
+
+    faceMesh.onResults((results) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+        sendToRN({ type: 'NO_FACE' });
+        status.textContent = '❌ No face detected';
+        return;
+      }
+
+      const landmarks = results.multiFaceLandmarks[0];
+      frameCount++;
+
+      // Blink detection
+      const leftEAR  = getEAR(landmarks, LEFT_EYE);
+      const rightEAR = getEAR(landmarks, RIGHT_EYE);
+      const avgEAR   = (leftEAR + rightEAR) / 2;
+
+      if (lastEAR > 0.2 && avgEAR < 0.15) {
+        blinkCount++;
+        blinkDetected = true;
+      }
+      lastEAR = avgEAR;
+
+      // Smile detection
+      const mar = getMAR(landmarks);
+      const smiling = mar > 0.08;
+
+      // Face embedding
+      const embedding = getFaceEmbedding(landmarks);
+
+      // Send data to React Native every frame
+      sendToRN({
+        type: 'FACE_DATA',
+        embedding: embedding,
+        landmarks: {
+          leftEAR,
+          rightEAR,
+          avgEAR,
+          mar,
+          blinkCount,
+          blinkDetected,
+          smiling,
+          frameCount,
+        },
+        faceBox: results.multiFaceLandmarks[0][1],
+      });
+
+      blinkDetected = false;
+
+      status.textContent = `✅ Face detected | EAR: ${avgEAR.toFixed(3)} | Blinks: ${blinkCount}`;
+    });
+
+    // Receive messages from React Native
+    window.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'RESET_BLINK') {
+        blinkCount = 0;
+      }
+    });
+
+    status.textContent = '✅ MediaPipe ready — waiting for camera feed';
+    sendToRN({ type: 'READY' });
+  </script>
+</body>
+</html>
