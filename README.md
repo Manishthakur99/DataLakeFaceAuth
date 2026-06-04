@@ -24,11 +24,11 @@
 
 ## Screenshots
 
-> Add screenshots here after running the app. Suggested layout:
+> Screenshots after running the App:
 
-| Home Screen | Enroll Face | Liveness Challenge | Auth Result | AWS Sync |
+| Home Screen | Register User | User Registered | Authentication | AWS Sync |
 |:-----------:|:-----------:|:-----------------:|:-----------:|:--------:|
-| ![Home](screenshots/home.png) | ![Enroll](screenshots/enroll.png) | ![Liveness](screenshots/liveness.png) | ![Result](screenshots/result.png) | ![Sync](screenshots/sync.png) |
+| ![Home](screenshots/home.jpeg) | ![Enroll](screenshots/enroll.jpeg) | ![Liveness](screenshots/userRegister.jpeg) | ![Result](screenshots/authentication.jpeg) | ![Sync](screenshots/aswSync.jpeg) |
 
 ---
 
